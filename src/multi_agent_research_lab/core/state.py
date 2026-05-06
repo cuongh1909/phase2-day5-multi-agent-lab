@@ -7,7 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from multi_agent_research_lab.core.schemas import AgentResult, ResearchQuery, SourceDocument
+from multi_agent_research_lab.core.schemas import AgentName, AgentResult, ResearchQuery, SourceDocument
 
 
 class ResearchState(BaseModel):
@@ -22,6 +22,9 @@ class ResearchState(BaseModel):
     analysis_notes: str | None = None
     final_answer: str | None = None
 
+    total_input_tokens: int = Field(default=0, ge=0)
+    total_output_tokens: int = Field(default=0, ge=0)
+
     agent_results: list[AgentResult] = Field(default_factory=list)
     trace: list[dict[str, Any]] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
@@ -32,3 +35,19 @@ class ResearchState(BaseModel):
 
     def add_trace_event(self, name: str, payload: dict[str, Any]) -> None:
         self.trace.append({"name": name, "payload": payload})
+
+    def record_llm_usage(self, input_tokens: int | None, output_tokens: int | None) -> None:
+        if input_tokens is not None:
+            self.total_input_tokens += input_tokens
+        if output_tokens is not None:
+            self.total_output_tokens += output_tokens
+
+    def append_agent_result(
+        self,
+        agent: AgentName,
+        content: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        self.agent_results.append(
+            AgentResult(agent=agent, content=content, metadata=dict(metadata or {}))
+        )

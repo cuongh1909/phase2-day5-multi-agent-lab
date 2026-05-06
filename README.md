@@ -2,7 +2,7 @@
 
 Starter repo cho bài lab **Multi-Agent Systems**: xây dựng hệ thống nghiên cứu gồm **Supervisor + Researcher + Analyst + Writer** và benchmark với single-agent baseline.
 
-> Mục tiêu của repo này là cung cấp **production-grade skeleton** để học viên phát triển code cá nhân. Các phần logic quan trọng được để ở dạng `TODO` để học viên tự triển khai.
+> Repo này bắt đầu từ **production-grade skeleton**. Trong phiên bản hiện tại, các milestone chính (LLM client, routing, workers, workflow, tracing, benchmark report) đã được implement để bạn có thể chạy end-to-end và kiểm tra deliverables.
 
 ## Learning outcomes
 
@@ -59,7 +59,7 @@ Trace + Benchmark Report
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
-pip install -e "[dev]"
+python -m pip install -e ".[dev,llm]"
 cp .env.example .env
 ```
 
@@ -69,35 +69,59 @@ Mở `.env` và điền key cần thiết.
 
 ```bash
 OPENAI_API_KEY=...
-# optional
-LANGSMITH_API_KEY=...
 TAVILY_API_KEY=...
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+# optional (Langfuse Cloud EU/US/JP hoặc self-host)
+LANGFUSE_BASE_URL=https://cloud.langfuse.com
 ```
 
 ### 3. Chạy smoke test
 
 ```bash
-make test
+python -m pytest
 python -m multi_agent_research_lab.cli --help
 ```
+
+> Windows/PowerShell mặc định không có `make`. Nếu bạn muốn chạy các target trong `Makefile`, dùng lệnh tương đương:
+>
+> - `make test` → `python -m pytest`
+> - `make lint` → `python -m ruff check src tests`
+> - `make format` → `python -m ruff format src tests`
+> - `make typecheck` → `python -m mypy src`
 
 ### 4. Chạy baseline skeleton
 
 ```bash
-python -m multi_agent_research_lab.cli baseline \
-  --query "Research GraphRAG state-of-the-art and write a 500-word summary"
+python -m multi_agent_research_lab.cli baseline --query "Research GraphRAG state-of-the-art and write a 500-word summary"
 ```
 
-Lệnh này chỉ chạy khung baseline tối giản. Học viên cần tự triển khai logic LLM thực tế trong `src/multi_agent_research_lab/services/llm_client.py`.
+Baseline hiện **đã gọi LLM thật** qua `src/multi_agent_research_lab/services/llm_client.py` và in latency/tokens.
 
 ### 5. Chạy multi-agent skeleton
 
 ```bash
-python -m multi_agent_research_lab.cli multi-agent \
-  --query "Research GraphRAG state-of-the-art and write a 500-word summary"
+python -m multi_agent_research_lab.cli multi-agent --query "Research GraphRAG state-of-the-art and write a 500-word summary"
 ```
 
-Mặc định lệnh sẽ báo các `TODO` cần làm. Đây là chủ đích của starter repo.
+Multi-agent hiện **đã chạy end-to-end** theo router: `researcher → analyst → writer → done` và trả về `ResearchState` dạng JSON.
+
+### 6. Kiểm tra tracing (Langfuse)
+
+- Khi chạy `baseline` / `multi-agent`, hệ thống sẽ tạo trace:
+  - `MultiAgentWorkflow` (chain)
+  - `tavily.search` (retriever)
+  - `openai.chat.completions` (generation, có usage token)
+- Sau khi chạy xong, mở Langfuse UI để copy link trace và dán vào `reports/benchmark_report.md`.
+
+### 7. Kiểm tra benchmark & report
+
+- Report mẫu đã có tại `reports/benchmark_report.md` (so sánh single vs multi-agent + failure modes).
+- Nếu muốn chạy benchmark nhanh (1 query) và xem metrics in terminal:
+
+```bash
+python -c "from multi_agent_research_lab.evaluation.benchmark import baseline_runner_factory, multi_agent_runner_factory, run_benchmark; q='Define GraphRAG in 2 sentences for engineers.'; print(run_benchmark('baseline', q, baseline_runner_factory())[1].model_dump()); print(run_benchmark('multi', q, multi_agent_runner_factory())[1].model_dump())"
+```
 
 ## Milestones trong 2 giờ lab
 
@@ -128,15 +152,15 @@ Tìm trong code các marker:
 grep -R "TODO(student)" -n src tests docs
 ```
 
-Các phần học viên cần tự làm:
+Nếu bạn đang dùng repo như “starter”, đây là checklist milestone gốc. Với phiên bản hiện tại, các mục này đã được implement để bạn có thể chạy/đánh giá trực tiếp:
 
-1. Implement LLM client.
-2. Implement web/search client hoặc mock search source.
-3. Implement routing decision trong Supervisor.
-4. Implement từng worker agent.
-5. Build LangGraph workflow.
-6. Thêm tracing provider thật: LangSmith, Langfuse hoặc OpenTelemetry.
-7. Viết benchmark report.
+1. LLM client (OpenAI).
+2. Web/search client (Tavily) + fallback desk research.
+3. Routing policy trong Supervisor.
+4. Worker agents: Researcher/Analyst/Writer.
+5. LangGraph workflow.
+6. Tracing provider thật: **Langfuse**.
+7. Benchmark + report markdown.
 
 ## Deliverables
 
